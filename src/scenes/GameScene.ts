@@ -27,8 +27,12 @@ export class GameScene extends Phaser.Scene {
   private mineralText!: Phaser.GameObjects.Text;
   private incomeText!: Phaser.GameObjects.Text;
   private planet!: Phaser.GameObjects.Container;
+  private planetBody!: Phaser.GameObjects.Arc; // 色を変えるために保持
   private shopContainer!: Phaser.GameObjects.Container;
   private saveText!: Phaser.GameObjects.Text;
+  
+  // 彗星イベント用
+  private cometTimer!: Phaser.Time.TimerEvent;
 
   constructor() {
     super({ key: 'GameScene' });
@@ -39,77 +43,191 @@ export class GameScene extends Phaser.Scene {
     this.calculateOfflineEarnings();
     this.createStarField();
 
-    // 基準サイズ 720x1280 に基づいたレイアウト
-    const cx = 360; // 横の中心
+    // レイアウト基準 (720x1280)
+    const cx = 360;
     const headerY = 150;
     const planetY = 400;
     const shopY = 700;
 
-    // --- 1. ヘッダー ---
+    // UI作成
     this.createHeader(cx, headerY);
-
-    // --- 2. 惑星 ---
     this.createPlanet(cx, planetY);
-
-    // --- 3. ショップ ---
     this.createGridShop(cx, shopY);
 
-    // --- 4. イベント ---
+    // ループイベント
     this.time.addEvent({ delay: 1000, callback: () => this.autoMine(), loop: true });
-    this.time.addEvent({ delay: 10000, callback: () => this.saveData(), loop: true });
+    this.time.addEvent({ delay: 5000, callback: () => this.saveData(), loop: true }); // セーブ頻度UP
     this.events.on('update', () => this.updateShopUI());
 
+    // 彗星イベント（15秒〜45秒ごとにランダム出現）
+    this.scheduleNextComet();
+
     this.updateUI();
+  }
+
+  // --- 彗星（ゴールデン・コメット）システム ---
+  private scheduleNextComet() {
+    const delay = Phaser.Math.Between(15000, 45000); // 15~45秒後
+    this.cometTimer = this.time.addEvent({
+      delay: delay,
+      callback: () => this.spawnComet(),
+    });
+  }
+
+  private spawnComet() {
+    // 画面の左か右、ランダムな高さから出現
+    const isLeft = Math.random() > 0.5;
+    const startX = isLeft ? -100 : 820;
+    const endX = isLeft ? 820 : -100;
+    const y = Phaser.Math.Between(100, 1000);
+
+    // 彗星の見た目
+    const comet = this.add.container(startX, y);
+    const head = this.add.circle(0, 0, 30, 0xffff00); // 金色
+    const tail = this.add.rectangle(isLeft ? -40 : 40, 0, 80, 20, 0xffaa00, 0.6);
+    const glow = this.add.circle(0, 0, 50, 0xffffff, 0.3);
+    
+    comet.add([tail, glow, head]);
+    
+    // クリックイベント
+    const hitArea = this.add.circle(0, 0, 60, 0x000000, 0).setInteractive({ useHandCursor: true });
+    hitArea.on('pointerdown', () => {
+      this.catchComet(comet);
+    });
+    comet.add(hitArea);
+
+    // アニメーション（横切る）
+    this.tweens.add({
+      targets: comet,
+      x: endX,
+      y: y + Phaser.Math.Between(-200, 200), // 少し斜めに
+      duration: 3000, // 3秒で横切る（スピード感）
+      onComplete: () => {
+        comet.destroy(); // 逃した
+        this.scheduleNextComet();
+      }
+    });
+    
+    // 回転アニメーション
+    this.tweens.add({
+      targets: comet,
+      angle: 360,
+      duration: 500,
+      repeat: -1
+    });
+  }
+
+  private catchComet(comet: Phaser.GameObjects.Container) {
+    comet.destroy();
+    
+    // ボーナス計算（現在の所持金の20% + 固定値）
+    const bonus = Math.floor(this.minerals * 0.2) + 100;
+    this.minerals += bonus;
+    this.updateUI();
+
+    // 派手な演出
+    this.cameras.main.shake(200, 0.02);
+    this.createFloatingText(comet.x, comet.y, `LUCKY!!\n+${this.formatNumber(bonus)}`, 0xffff00, 60);
+    
+    // キラキラパーティクル
+    for(let i=0; i<10; i++) {
+        const p = this.add.circle(comet.x, comet.y, 10, 0xffff00);
+        this.tweens.add({
+            targets: p,
+            x: comet.x + Phaser.Math.Between(-100, 100),
+            y: comet.y + Phaser.Math.Between(-100, 100),
+            alpha: 0,
+            duration: 800,
+            onComplete: () => p.destroy()
+        });
+    }
+
+    this.scheduleNextComet();
+  }
+
+  // --- 惑星の進化システム ---
+  private checkPlanetEvolution() {
+    // 所持金に応じて色を変える
+    let color = 0x4466aa; // 初期：青（水）
+
+    if (this.minerals < 1000) {
+        color = 0x888888; // 貧乏：岩石（グレー）
+    } else if (this.minerals < 100000) {
+        color = 0x4466aa; // 1k~: 水の惑星
+    } else if (this.minerals < 10000000) {
+        color = 0x22aa44; // 100k~: 緑の惑星（森）
+    } else if (this.minerals < 1000000000) {
+        color = 0xcc44cc; // 10M~: サイバー惑星（紫）
+    } else {
+        color = 0xffaa00; // 1B~: 恒星（太陽）
+    }
+
+    // 色を滑らかに変更
+    if (this.planetBody.fillColor !== color) {
+        this.tweens.addCounter({
+            from: 0,
+            to: 100,
+            duration: 1000,
+            onUpdate: (tween) => {
+                const val = tween.getValue();
+                const colObject = Phaser.Display.Color.Interpolate.ColorWithColor(
+                    Phaser.Display.Color.ValueToColor(this.planetBody.fillColor),
+                    Phaser.Display.Color.ValueToColor(color),
+                    100, val
+                );
+                this.planetBody.setFillStyle(Phaser.Display.Color.GetColor(colObject.r, colObject.g, colObject.b));
+            }
+        });
+    }
   }
 
   // --- ヘッダー ---
   private createHeader(x: number, y: number) {
     const jpFont = { fontFamily: '"Hiragino Kaku Gothic ProN", "Meiryo", sans-serif', fontWeight: 'bold' };
     
-    // 背景
     const bg = this.add.graphics();
     bg.fillStyle(0x000000, 0.6);
     bg.lineStyle(2, 0x444444);
-    bg.fillRoundedRect(x - 300, y - 80, 600, 160, 20);
-    bg.strokeRoundedRect(x - 300, y - 80, 600, 160, 20);
+    bg.fillRoundedRect(x - 320, y - 80, 640, 160, 20);
+    bg.strokeRoundedRect(x - 320, y - 80, 640, 160, 20);
 
-    this.mineralText = this.add.text(x, y - 15, '0', { ...jpFont, fontSize: '60px', color: '#ffffff' })
+    this.mineralText = this.add.text(x, y - 15, '0', { ...jpFont, fontSize: '70px', color: '#ffffff' })
       .setOrigin(0.5).setStroke('#000000', 6);
       
-    this.add.text(x, y + 40, 'MINERALS', { ...jpFont, fontSize: '18px', color: '#aaaaaa' }).setOrigin(0.5);
+    this.add.text(x, y + 45, 'MINERALS', { ...jpFont, fontSize: '20px', color: '#aaaaaa' }).setOrigin(0.5);
     
-    this.incomeText = this.add.text(x, y + 70, '+0 / 秒', { ...jpFont, fontSize: '24px', color: '#00ff00' })
+    this.incomeText = this.add.text(x, y + 75, '+0 / 秒', { ...jpFont, fontSize: '24px', color: '#00ff00' })
       .setOrigin(0.5).setStroke('#000000', 3);
 
-    this.saveText = this.add.text(700, 20, 'AUTOSAVE', { fontSize: '16px', color: '#00ff00' }).setOrigin(1, 0).setAlpha(0);
+    this.saveText = this.add.text(680, 20, 'AUTOSAVE', { fontSize: '16px', color: '#00ff00' }).setOrigin(1, 0).setAlpha(0);
   }
 
   // --- 惑星 ---
   private createPlanet(x: number, y: number) {
     this.planet = this.add.container(x, y);
-    const radius = 160;
+    const radius = 180;
     
-    const body = this.add.circle(0, 0, radius, 0x4466aa);
+    this.planetBody = this.add.circle(0, 0, radius, 0x888888); // 初期色はグレー
     const shadow = this.add.circle(-20, -20, radius - 10, 0x000000, 0.3);
     const atmosphere = this.add.arc(0, 0, radius + 20, 0, 360, false, 0x4488ff, 0.2);
     const ring = this.add.ellipse(0, 0, radius * 3.2, radius * 0.7, 0x88ccff, 0.4).setRotation(0.3);
 
-    this.planet.add([atmosphere, ring, body, shadow]);
+    this.planet.add([atmosphere, ring, this.planetBody, shadow]);
     this.planet.setSize(radius * 2.5, radius * 2.5);
 
     this.planet.setInteractive({ useHandCursor: true })
       .on('pointerdown', (pointer: Phaser.Input.Pointer) => this.handlePlanetClick(pointer));
 
-    this.tweens.add({ targets: this.planet, y: y + 15, duration: 2000, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
-    this.tweens.add({ targets: ring, rotation: 0.35, duration: 6000, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    this.tweens.add({ targets: this.planet, y: y + 20, duration: 2500, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    this.tweens.add({ targets: ring, rotation: 0.35, duration: 7000, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
   }
 
   // --- ショップ ---
   private createGridShop(centerX: number, startY: number) {
     this.shopContainer = this.add.container(0, 0);
     const cols = 2;
-    const cellWidth = 320; // 固定サイズ
-    const cellHeight = 200;
+    const cellWidth = 330; 
+    const cellHeight = 220;
     const margin = 20;
 
     const jpFont = { fontFamily: '"Hiragino Kaku Gothic ProN", sans-serif', fontWeight: 'bold' };
@@ -118,7 +236,6 @@ export class GameScene extends Phaser.Scene {
       const col = i % cols;
       const row = Math.floor(i / cols);
       
-      // グリッド配置の計算
       const x = centerX + (col === 0 ? -1 : 1) * (cellWidth / 2 + margin / 2);
       const y = startY + row * (cellHeight + margin);
 
@@ -131,34 +248,33 @@ export class GameScene extends Phaser.Scene {
       
       bg.setName('bgGraphics'); 
 
-      const barY = 50;
-      const barBg = this.add.rectangle(0, barY, cellWidth * 0.9, 10, 0x000000);
-      const barFill = this.add.rectangle(-(cellWidth * 0.9) / 2, barY, 0, 10, 0xffff00).setOrigin(0, 0.5);
+      const barY = 70;
+      const barBg = this.add.rectangle(0, barY, cellWidth * 0.9, 12, 0x000000);
+      const barFill = this.add.rectangle(-(cellWidth * 0.9) / 2, barY, 0, 12, 0xffff00).setOrigin(0, 0.5);
       barFill.setName('bar');
 
-      const icon = this.add.text(-80, -30, b.icon, { fontSize: '80px' }).setOrigin(0.5);
+      const icon = this.add.text(-90, -40, b.icon, { fontSize: '90px' }).setOrigin(0.5);
       
-      const nameText = this.add.text(40, -50, b.name, { ...jpFont, fontSize: '24px', color: '#ffffff' }).setOrigin(0.5);
+      const nameText = this.add.text(50, -60, b.name, { ...jpFont, fontSize: '26px', color: '#ffffff' }).setOrigin(0.5);
       
-      const costText = this.add.text(40, -10, `¥${this.formatNumber(b.cost)}`, { ...jpFont, fontSize: '28px', color: '#aaaaaa' }).setOrigin(0.5);
+      const costText = this.add.text(50, -10, `¥${this.formatNumber(b.cost)}`, { ...jpFont, fontSize: '32px', color: '#aaaaaa' }).setOrigin(0.5);
       costText.setName('cost');
       
-      const incomeText = this.add.text(40, 25, `+${this.formatNumber(b.baseIncome)}/秒`, { fontSize: '20px', color: '#00ff00' }).setOrigin(0.5);
+      const incomeText = this.add.text(50, 35, `+${this.formatNumber(b.baseIncome)}/秒`, { fontSize: '22px', color: '#00ff00' }).setOrigin(0.5);
 
-      const countBg = this.add.circle(130, -80, 25, 0x000000).setStrokeStyle(2, 0xffffff);
-      const countText = this.add.text(130, -80, `${b.count}`, { fontSize: '24px', color: '#ffffff', fontStyle: 'bold' }).setOrigin(0.5);
+      const countBg = this.add.circle(130, -80, 28, 0x000000).setStrokeStyle(3, 0xffffff);
+      const countText = this.add.text(130, -80, `${b.count}`, { fontSize: '26px', color: '#ffffff', fontStyle: 'bold' }).setOrigin(0.5);
       countText.setName('count');
 
       container.add([bg, hitArea, barBg, barFill, icon, nameText, costText, incomeText, countBg, countText]);
       container.setName(`item_${i}`);
-      // 固定サイズなのでデータとして持たせておく
-      container.setData('info', { width: cellWidth, height: cellHeight, radius: 16 });
+      container.setData('info', { width: cellWidth, height: cellHeight, radius: 20 });
 
       this.shopContainer.add(container);
     });
   }
 
-  // --- アクション & 更新 ---
+  // --- アクション ---
   private handlePlanetClick(pointer: Phaser.Input.Pointer) {
     const isCritical = Math.random() < 0.05;
     const baseAmount = 1;
@@ -167,7 +283,6 @@ export class GameScene extends Phaser.Scene {
     this.updateUI();
     this.tweens.add({ targets: this.planet, scaleX: 0.9, scaleY: 0.9, duration: 50, yoyo: true });
     
-    // タップ位置に関係なく、惑星周辺にテキストを出す（FITモード時の座標ズレ防止）
     const x = pointer.worldX;
     const y = pointer.worldY;
     const color = isCritical ? 0xff0000 : 0xffffff;
@@ -181,10 +296,11 @@ export class GameScene extends Phaser.Scene {
     if (income > 0) {
       this.minerals += income;
       this.updateUI();
+      // アイコンポップ
       const b = this.buildings[Phaser.Math.Between(0, this.buildings.length - 1)];
       if (b.count > 0) {
-         const x = this.planet.x + Phaser.Math.Between(-50, 50);
-         this.createFloatingText(x, this.planet.y - 100, `${b.icon}+${this.formatNumber(income)}`, 0x00ff00, 24);
+         const x = this.planet.x + Phaser.Math.Between(-60, 60);
+         this.createFloatingText(x, this.planet.y - 120, `${b.icon}+${this.formatNumber(income)}`, 0x00ff00, 28);
       }
     }
   }
@@ -202,11 +318,15 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  // --- UI更新 ---
   private updateUI() {
     this.mineralText.setText(this.formatNumber(Math.floor(this.minerals)));
     let totalIncome = 0;
     this.buildings.forEach(b => totalIncome += (b.count * b.baseIncome));
     this.incomeText.setText(`+${this.formatNumber(totalIncome)} / 秒`);
+    
+    // 惑星の進化チェック
+    this.checkPlanetEvolution();
   }
 
   private updateShopUI() {
@@ -240,8 +360,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createFloatingText(x: number, y: number, msg: string, color: number, size: number) {
-    const text = this.add.text(x, y, msg, { fontSize: `${size}px`, color: '#ffffff', stroke: `#${color.toString(16)}`, strokeThickness: 3 }).setOrigin(0.5);
-    this.tweens.add({ targets: text, y: y - 80, alpha: 0, duration: 800, onComplete: () => text.destroy() });
+    const text = this.add.text(x, y, msg, { fontSize: `${size}px`, color: '#ffffff', stroke: `#${color.toString(16)}`, strokeThickness: 4 }).setOrigin(0.5);
+    this.tweens.add({ targets: text, y: y - 100, alpha: 0, duration: 1000, onComplete: () => text.destroy() });
   }
 
   private createStarField() {
@@ -260,13 +380,13 @@ export class GameScene extends Phaser.Scene {
 
   private saveData() {
     const saveObj = { minerals: this.minerals, buildings: this.buildings.map(b => ({ id: b.id, count: b.count, cost: b.cost })), lastSaveTime: Date.now() };
-    localStorage.setItem('cosmic_mining_v5', JSON.stringify(saveObj));
+    localStorage.setItem('cosmic_mining_v6', JSON.stringify(saveObj));
     this.saveText.setAlpha(1);
     this.tweens.add({ targets: this.saveText, alpha: 0, duration: 2000 });
   }
 
   private loadData() {
-    const rawData = localStorage.getItem('cosmic_mining_v5');
+    const rawData = localStorage.getItem('cosmic_mining_v6');
     if (rawData) {
       const data = JSON.parse(rawData);
       this.minerals = data.minerals || 0;
@@ -278,9 +398,9 @@ export class GameScene extends Phaser.Scene {
         });
       }
     } else {
-        const v4Data = localStorage.getItem('cosmic_mining_v4');
-        if(v4Data) {
-            const d = JSON.parse(v4Data);
+        const v5Data = localStorage.getItem('cosmic_mining_v5');
+        if(v5Data) {
+            const d = JSON.parse(v5Data);
             this.minerals = d.minerals || 0;
         }
     }
