@@ -1,17 +1,21 @@
 body {
   margin: 0;
   padding: 0;
-  background-color: #000000;
-  overflow: hidden; /* スクロール禁止 */
-  touch-action: none; /* スマホでのズームやスクロールを無効化 */
-  display: flex;
-  justify_content: center;
-  align-items: center;
+  background-color: #0d1117; /* 背景色 */
+  overflow: hidden;
+  touch-action: none;
   height: 100vh;
   width: 100vw;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
 #game-container {
+  /* ゲーム画面のサイズ制限 */
   width: 100%;
   height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
