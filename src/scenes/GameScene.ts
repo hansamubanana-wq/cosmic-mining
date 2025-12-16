@@ -31,8 +31,7 @@ export class GameScene extends Phaser.Scene {
   private shopContainer!: Phaser.GameObjects.Container;
   private saveText!: Phaser.GameObjects.Text;
   
-  // 彗星イベント用
-  private cometTimer!: Phaser.Time.TimerEvent;
+  // 修正1: cometTimer変数は削除（使わないため）
 
   constructor() {
     super({ key: 'GameScene' });
@@ -43,33 +42,28 @@ export class GameScene extends Phaser.Scene {
     this.calculateOfflineEarnings();
     this.createStarField();
 
-    // レイアウト基準 (720x1280)
     const cx = 360;
     const headerY = 150;
     const planetY = 400;
     const shopY = 700;
 
-    // UI作成
     this.createHeader(cx, headerY);
     this.createPlanet(cx, planetY);
     this.createGridShop(cx, shopY);
 
-    // ループイベント
     this.time.addEvent({ delay: 1000, callback: () => this.autoMine(), loop: true });
     this.time.addEvent({ delay: 5000, callback: () => this.saveData(), loop: true }); 
     this.events.on('update', () => this.updateShopUI());
 
-    // 彗星イベント開始
     this.scheduleNextComet();
-
     this.updateUI();
   }
 
-  // --- 彗星（ゴールデン・コメット）システム ---
+  // --- 彗星イベント ---
   private scheduleNextComet() {
     const delay = Phaser.Math.Between(15000, 45000); 
-    // 【修正1】変数に代入するように修正
-    this.cometTimer = this.time.addEvent({
+    // 修正2: 変数に入れず直接実行
+    this.time.addEvent({
       delay: delay,
       callback: () => this.spawnComet(),
     });
@@ -138,7 +132,7 @@ export class GameScene extends Phaser.Scene {
     this.scheduleNextComet();
   }
 
-  // --- 惑星の進化システム ---
+  // --- 惑星の進化 ---
   private checkPlanetEvolution() {
     let color = 0x4466aa; 
 
@@ -154,8 +148,10 @@ export class GameScene extends Phaser.Scene {
         color = 0xffaa00; 
     }
 
-    // 【修正2】nullチェックを追加 (?? 0x888888)
-    if (this.planetBody.fillColor !== color) {
+    // 修正3: 色の取得を厳密に行う (nullチェック回避)
+    const currentColor = (this.planetBody.fillColor != null) ? this.planetBody.fillColor : 0x888888;
+
+    if (currentColor !== color) {
         this.tweens.addCounter({
             from: 0,
             to: 100,
@@ -163,7 +159,7 @@ export class GameScene extends Phaser.Scene {
             onUpdate: (tween) => {
                 const val = tween.getValue();
                 const colObject = Phaser.Display.Color.Interpolate.ColorWithColor(
-                    Phaser.Display.Color.ValueToColor(this.planetBody.fillColor ?? 0x888888),
+                    Phaser.Display.Color.ValueToColor(currentColor),
                     Phaser.Display.Color.ValueToColor(color),
                     100, val
                 );
