@@ -27,7 +27,7 @@ export class GameScene extends Phaser.Scene {
   private mineralText!: Phaser.GameObjects.Text;
   private incomeText!: Phaser.GameObjects.Text;
   private planet!: Phaser.GameObjects.Container;
-  private planetBody!: Phaser.GameObjects.Arc; // 色を変えるために保持
+  private planetBody!: Phaser.GameObjects.Arc;
   private shopContainer!: Phaser.GameObjects.Container;
   private saveText!: Phaser.GameObjects.Text;
   
@@ -56,10 +56,10 @@ export class GameScene extends Phaser.Scene {
 
     // ループイベント
     this.time.addEvent({ delay: 1000, callback: () => this.autoMine(), loop: true });
-    this.time.addEvent({ delay: 5000, callback: () => this.saveData(), loop: true }); // セーブ頻度UP
+    this.time.addEvent({ delay: 5000, callback: () => this.saveData(), loop: true }); 
     this.events.on('update', () => this.updateShopUI());
 
-    // 彗星イベント（15秒〜45秒ごとにランダム出現）
+    // 彗星イベント開始
     this.scheduleNextComet();
 
     this.updateUI();
@@ -67,7 +67,8 @@ export class GameScene extends Phaser.Scene {
 
   // --- 彗星（ゴールデン・コメット）システム ---
   private scheduleNextComet() {
-    const delay = Phaser.Math.Between(15000, 45000); // 15~45秒後
+    const delay = Phaser.Math.Between(15000, 45000); 
+    // 【修正1】変数に代入するように修正
     this.cometTimer = this.time.addEvent({
       delay: delay,
       callback: () => this.spawnComet(),
@@ -75,40 +76,35 @@ export class GameScene extends Phaser.Scene {
   }
 
   private spawnComet() {
-    // 画面の左か右、ランダムな高さから出現
     const isLeft = Math.random() > 0.5;
     const startX = isLeft ? -100 : 820;
     const endX = isLeft ? 820 : -100;
     const y = Phaser.Math.Between(100, 1000);
 
-    // 彗星の見た目
     const comet = this.add.container(startX, y);
-    const head = this.add.circle(0, 0, 30, 0xffff00); // 金色
+    const head = this.add.circle(0, 0, 30, 0xffff00); 
     const tail = this.add.rectangle(isLeft ? -40 : 40, 0, 80, 20, 0xffaa00, 0.6);
     const glow = this.add.circle(0, 0, 50, 0xffffff, 0.3);
     
     comet.add([tail, glow, head]);
     
-    // クリックイベント
     const hitArea = this.add.circle(0, 0, 60, 0x000000, 0).setInteractive({ useHandCursor: true });
     hitArea.on('pointerdown', () => {
       this.catchComet(comet);
     });
     comet.add(hitArea);
 
-    // アニメーション（横切る）
     this.tweens.add({
       targets: comet,
       x: endX,
-      y: y + Phaser.Math.Between(-200, 200), // 少し斜めに
-      duration: 3000, // 3秒で横切る（スピード感）
+      y: y + Phaser.Math.Between(-200, 200),
+      duration: 3000,
       onComplete: () => {
-        comet.destroy(); // 逃した
+        comet.destroy();
         this.scheduleNextComet();
       }
     });
     
-    // 回転アニメーション
     this.tweens.add({
       targets: comet,
       angle: 360,
@@ -120,16 +116,13 @@ export class GameScene extends Phaser.Scene {
   private catchComet(comet: Phaser.GameObjects.Container) {
     comet.destroy();
     
-    // ボーナス計算（現在の所持金の20% + 固定値）
     const bonus = Math.floor(this.minerals * 0.2) + 100;
     this.minerals += bonus;
     this.updateUI();
 
-    // 派手な演出
     this.cameras.main.shake(200, 0.02);
     this.createFloatingText(comet.x, comet.y, `LUCKY!!\n+${this.formatNumber(bonus)}`, 0xffff00, 60);
     
-    // キラキラパーティクル
     for(let i=0; i<10; i++) {
         const p = this.add.circle(comet.x, comet.y, 10, 0xffff00);
         this.tweens.add({
@@ -147,22 +140,21 @@ export class GameScene extends Phaser.Scene {
 
   // --- 惑星の進化システム ---
   private checkPlanetEvolution() {
-    // 所持金に応じて色を変える
-    let color = 0x4466aa; // 初期：青（水）
+    let color = 0x4466aa; 
 
     if (this.minerals < 1000) {
-        color = 0x888888; // 貧乏：岩石（グレー）
+        color = 0x888888;
     } else if (this.minerals < 100000) {
-        color = 0x4466aa; // 1k~: 水の惑星
+        color = 0x4466aa;
     } else if (this.minerals < 10000000) {
-        color = 0x22aa44; // 100k~: 緑の惑星（森）
+        color = 0x22aa44; 
     } else if (this.minerals < 1000000000) {
-        color = 0xcc44cc; // 10M~: サイバー惑星（紫）
+        color = 0xcc44cc; 
     } else {
-        color = 0xffaa00; // 1B~: 恒星（太陽）
+        color = 0xffaa00; 
     }
 
-    // 色を滑らかに変更
+    // 【修正2】nullチェックを追加 (?? 0x888888)
     if (this.planetBody.fillColor !== color) {
         this.tweens.addCounter({
             from: 0,
@@ -171,7 +163,7 @@ export class GameScene extends Phaser.Scene {
             onUpdate: (tween) => {
                 const val = tween.getValue();
                 const colObject = Phaser.Display.Color.Interpolate.ColorWithColor(
-                    Phaser.Display.Color.ValueToColor(this.planetBody.fillColor),
+                    Phaser.Display.Color.ValueToColor(this.planetBody.fillColor ?? 0x888888),
                     Phaser.Display.Color.ValueToColor(color),
                     100, val
                 );
@@ -207,7 +199,7 @@ export class GameScene extends Phaser.Scene {
     this.planet = this.add.container(x, y);
     const radius = 180;
     
-    this.planetBody = this.add.circle(0, 0, radius, 0x888888); // 初期色はグレー
+    this.planetBody = this.add.circle(0, 0, radius, 0x888888); 
     const shadow = this.add.circle(-20, -20, radius - 10, 0x000000, 0.3);
     const atmosphere = this.add.arc(0, 0, radius + 20, 0, 360, false, 0x4488ff, 0.2);
     const ring = this.add.ellipse(0, 0, radius * 3.2, radius * 0.7, 0x88ccff, 0.4).setRotation(0.3);
@@ -296,7 +288,6 @@ export class GameScene extends Phaser.Scene {
     if (income > 0) {
       this.minerals += income;
       this.updateUI();
-      // アイコンポップ
       const b = this.buildings[Phaser.Math.Between(0, this.buildings.length - 1)];
       if (b.count > 0) {
          const x = this.planet.x + Phaser.Math.Between(-60, 60);
@@ -325,7 +316,6 @@ export class GameScene extends Phaser.Scene {
     this.buildings.forEach(b => totalIncome += (b.count * b.baseIncome));
     this.incomeText.setText(`+${this.formatNumber(totalIncome)} / 秒`);
     
-    // 惑星の進化チェック
     this.checkPlanetEvolution();
   }
 
