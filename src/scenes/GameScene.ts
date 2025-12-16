@@ -31,6 +31,8 @@ export class GameScene extends Phaser.Scene {
   private shopContainer!: Phaser.GameObjects.Container;
   private saveText!: Phaser.GameObjects.Text;
 
+  // cometTimer は削除しました
+
   constructor() {
     super({ key: 'GameScene' });
   }
@@ -60,6 +62,7 @@ export class GameScene extends Phaser.Scene {
   // --- 彗星イベント ---
   private scheduleNextComet() {
     const delay = Phaser.Math.Between(15000, 45000); 
+    // 変数への代入をやめ、直接実行
     this.time.addEvent({
       delay: delay,
       callback: () => this.spawnComet(),
@@ -145,11 +148,12 @@ export class GameScene extends Phaser.Scene {
         color = 0xffaa00; 
     }
 
-    // nullチェックを行って確実に数値にする
-    const currentFill = this.planetBody.fillColor;
-    const currentColor: number = (currentFill != null) ? currentFill : 0x888888;
+    // 【修正箇所】
+    // fillColorが null/undefined の場合は強制的に 0x888888 を使う
+    // これにより safeCurrentColor は必ず number 型になる
+    const safeCurrentColor = this.planetBody.fillColor || 0x888888;
 
-    if (currentColor !== color) {
+    if (safeCurrentColor !== color) {
         this.tweens.addCounter({
             from: 0,
             to: 100,
@@ -157,8 +161,7 @@ export class GameScene extends Phaser.Scene {
             onUpdate: (tween) => {
                 const val = tween.getValue();
                 const colObject = Phaser.Display.Color.Interpolate.ColorWithColor(
-                    // 【修正】ここで 'as number' をつけて型を強制する
-                    Phaser.Display.Color.ValueToColor(currentColor as number),
+                    Phaser.Display.Color.ValueToColor(safeCurrentColor), // ここは絶対にnumberになる
                     Phaser.Display.Color.ValueToColor(color),
                     100, val
                 );
