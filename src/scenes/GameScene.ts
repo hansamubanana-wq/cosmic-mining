@@ -8,7 +8,7 @@ interface Building {
   count: number;
   cost: number;
   color: number;
-  icon: string; // 絵文字アイコン
+  icon: string;
 }
 
 export class GameScene extends Phaser.Scene {
@@ -16,7 +16,7 @@ export class GameScene extends Phaser.Scene {
   private minerals: number = 0;
   private lastSaveTime: number = Date.now();
   
-  // 施設データ（アイコン追加）
+  // 施設データ
   private buildings: Building[] = [
     { id: 'drone', name: '採掘ドローン', baseCost: 15, baseIncome: 1, count: 0, cost: 15, color: 0x22ff22, icon: '🛸' },
     { id: 'rover', name: '探査ローバー', baseCost: 100, baseIncome: 5, count: 0, cost: 100, color: 0x00ccff, icon: '🚜' },
@@ -45,13 +45,14 @@ export class GameScene extends Phaser.Scene {
     
     // --- 背景と惑星 ---
     this.createStarField();
-    this.createPlanet(cx, 300); // 惑星を少し上に配置
+    this.createPlanet(cx, 300);
 
     // --- UIヘッダー ---
     const jpFont = { fontFamily: '"Hiragino Kaku Gothic ProN", "Meiryo", sans-serif', fontWeight: 'bold' };
     
-    // 所持金表示エリア
-    const headerBg = this.add.rectangle(cx, 80, 500, 150, 0x000000, 0.5);
+    // 所持金表示エリア（ここを修正：変数に入れずに直接描画）
+    this.add.rectangle(cx, 80, 500, 150, 0x000000, 0.5);
+    
     this.mineralText = this.add.text(cx, 70, '0', { ...jpFont, fontSize: '50px', color: '#ffffff' })
       .setOrigin(0.5).setStroke('#000000', 4);
     this.add.text(cx, 110, 'MINERALS', { ...jpFont, fontSize: '14px', color: '#888888' }).setOrigin(0.5);
@@ -61,7 +62,7 @@ export class GameScene extends Phaser.Scene {
 
     this.saveText = this.add.text(this.scale.width - 20, 20, 'AUTOSAVE', { fontSize: '12px', color: '#00ff00' }).setOrigin(1, 0).setAlpha(0);
 
-    // --- ショップエリア（グリッド表示） ---
+    // --- ショップエリア ---
     this.createGridShop(cx, 550);
 
     // --- イベント ---
@@ -72,11 +73,10 @@ export class GameScene extends Phaser.Scene {
     this.updateUI();
   }
 
-  // --- 惑星生成（リッチ版） ---
+  // --- 惑星生成 ---
   private createPlanet(x: number, y: number) {
     this.planet = this.add.container(x, y);
     
-    // 惑星本体
     const body = this.add.circle(0, 0, 130, 0x4466aa);
     const shadow = this.add.circle(-20, -20, 110, 0x000000, 0.3);
     const atmosphere = this.add.arc(0, 0, 140, 0, 360, false, 0x4488ff, 0.2);
@@ -85,11 +85,9 @@ export class GameScene extends Phaser.Scene {
     this.planet.add([atmosphere, ring, body, shadow]);
     this.planet.setSize(260, 260);
 
-    // タップイベント
     this.planet.setInteractive({ useHandCursor: true })
       .on('pointerdown', (pointer: Phaser.Input.Pointer) => this.handlePlanetClick(pointer));
 
-    // ゆらゆらアニメーション
     this.tweens.add({ targets: this.planet, y: y + 10, duration: 2000, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
     this.tweens.add({ targets: ring, rotation: 0.35, duration: 6000, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
   }
@@ -97,36 +95,30 @@ export class GameScene extends Phaser.Scene {
   // --- グリッドショップ生成 ---
   private createGridShop(centerX: number, startY: number) {
     this.shopContainer = this.add.container(0, 0);
-    const cols = 2; // 2列表示
+    const cols = 2;
     const cellWidth = 190;
     const cellHeight = 190;
     const jpFont = { fontFamily: '"Hiragino Kaku Gothic ProN", sans-serif', fontWeight: 'bold' };
 
     this.buildings.forEach((b, i) => {
-      // グリッド座標計算
       const col = i % cols;
       const row = Math.floor(i / cols);
-      const x = centerX + (col - 0.5) * cellWidth * 1.05; // 少し隙間を空ける
+      const x = centerX + (col - 0.5) * cellWidth * 1.05;
       const y = startY + row * cellHeight * 1.05;
 
       const container = this.add.container(x, y);
 
-      // ボタン背景
       const bg = this.add.rectangle(0, 0, 180, 180, 0x222222).setStrokeStyle(2, 0x555555)
         .setInteractive({ useHandCursor: true })
         .on('pointerdown', () => this.buyBuilding(i));
-      bg.setName(`bg`); // 参照用
+      bg.setName(`bg`);
 
-      // 進捗バー（背景）
       const barBg = this.add.rectangle(0, 85, 180, 10, 0x000000);
-      // 進捗バー（中身）
       const barFill = this.add.rectangle(-90, 85, 0, 10, 0xffff00).setOrigin(0, 0.5);
       barFill.setName('bar');
 
-      // アイコン（絵文字）
       const icon = this.add.text(0, -30, b.icon, { fontSize: '60px' }).setOrigin(0.5);
       
-      // テキスト情報
       const nameText = this.add.text(0, 15, b.name, { ...jpFont, fontSize: '16px', color: '#ffffff' }).setOrigin(0.5);
       const costText = this.add.text(0, 40, `¥${this.formatNumber(b.cost)}`, { ...jpFont, fontSize: '18px', color: '#aaaaaa' }).setOrigin(0.5);
       costText.setName('cost');
@@ -135,12 +127,10 @@ export class GameScene extends Phaser.Scene {
       const countText = this.add.text(70, -70, `${b.count}`, { fontSize: '18px', color: '#ffffff' }).setOrigin(0.5);
       countText.setName('count');
 
-      // 収入表示
       const incomeText = this.add.text(0, 60, `+${this.formatNumber(b.baseIncome)}/s`, { fontSize: '14px', color: '#00ff00' }).setOrigin(0.5);
 
       container.add([bg, barBg, barFill, icon, nameText, costText, incomeText, countBg, countText]);
       
-      // shopContainerにまとめて管理（updateShopUIで使いやすくするため配列構造ではなく名前で管理したいが、今回はコンテナごと配列管理はしないので、shopContainerの子要素として追加）
       container.setName(`item_${i}`);
       this.shopContainer.add(container);
     });
@@ -149,7 +139,6 @@ export class GameScene extends Phaser.Scene {
   // --- アクション ---
 
   private handlePlanetClick(pointer: Phaser.Input.Pointer) {
-    // クリティカル判定 (5%)
     const isCritical = Math.random() < 0.05;
     const baseAmount = 1;
     const amount = isCritical ? baseAmount * 10 : baseAmount;
@@ -157,11 +146,10 @@ export class GameScene extends Phaser.Scene {
     this.minerals += amount;
     this.updateUI();
 
-    // 演出
     this.tweens.add({ targets: this.planet, scaleX: 0.9, scaleY: 0.9, duration: 50, yoyo: true });
 
     if (isCritical) {
-      this.cameras.main.shake(100, 0.01); // 画面揺れ
+      this.cameras.main.shake(100, 0.01);
       this.createFloatingText(pointer.x, pointer.y, `CRITICAL!\n+${amount}`, 0xff0000, 40);
     } else {
       this.createFloatingText(pointer.x, pointer.y, `+${amount}`, 0xffffff, 28);
@@ -176,7 +164,6 @@ export class GameScene extends Phaser.Scene {
       this.minerals += income;
       this.updateUI();
       
-      // ランダムな位置からアイコンが飛び出す演出
       const b = this.buildings[Phaser.Math.Between(0, this.buildings.length - 1)];
       if (b.count > 0) {
          const x = this.planet.x + Phaser.Math.Between(-50, 50);
@@ -194,7 +181,6 @@ export class GameScene extends Phaser.Scene {
       b.cost = Math.floor(b.cost * 1.5);
       this.updateUI();
       
-      // 購入演出（ボタンが跳ねる）
       const container = this.shopContainer.getByName(`item_${index}`) as Phaser.GameObjects.Container;
       this.tweens.add({ targets: container, scale: 1.1, duration: 100, yoyo: true });
       
@@ -221,16 +207,14 @@ export class GameScene extends Phaser.Scene {
       const countText = container.getByName('count') as Phaser.GameObjects.Text;
       const bar = container.getByName('bar') as Phaser.GameObjects.Rectangle;
 
-      // テキスト更新
       costText.setText(`¥${this.formatNumber(b.cost)}`);
       countText.setText(`${b.count}`);
 
-      // 色とゲージの更新
       const percent = Phaser.Math.Clamp(this.minerals / b.cost, 0, 1);
-      bar.width = 180 * percent; // ゲージの長さ
+      bar.width = 180 * percent;
 
       if (this.minerals >= b.cost) {
-        bg.setStrokeStyle(3, b.color); // 買える時は枠が光る
+        bg.setStrokeStyle(3, b.color);
         bg.setAlpha(1);
         costText.setColor('#ffffff');
       } else {
@@ -307,12 +291,10 @@ export class GameScene extends Phaser.Scene {
         });
       }
     } else {
-      // v2からの引き継ぎ（簡易版）
       const v2Data = localStorage.getItem('cosmic_mining_v2');
       if (v2Data) {
         const d = JSON.parse(v2Data);
         this.minerals = d.minerals || 0;
-        // 建物データの形式が変わったため、資金だけ引き継いでリセット扱いにするのが安全
         alert("大型アップデートのため、施設がリセットされました。\n代わりに所持金は引き継がれます！");
       }
     }
