@@ -38,25 +38,22 @@ export class GameScene extends Phaser.Scene {
     this.loadData();
     this.calculateOfflineEarnings();
 
-    // 画面中央の基準線
+    // 画面中央の基準線（横だけ使う）
     const cx = this.cameras.main.centerX;
-    const cy = this.cameras.main.centerY;
     
     this.createStarField();
 
     // --- レイアウト調整 ---
-    // 画面が縦に伸びたので、配置を割合（%）で指定して綺麗に散らす
-    const headerY = this.scale.height * 0.1;  // 上から10%の位置
-    const planetY = this.scale.height * 0.25; // 上から25%の位置
-    const shopY = this.scale.height * 0.55;   // 上から55%の位置からショップ開始
+    const headerY = this.scale.height * 0.1;
+    const planetY = this.scale.height * 0.25;
+    const shopY = this.scale.height * 0.55;
 
     // --- 惑星 ---
     this.createPlanet(cx, planetY);
 
-    // --- UIヘッダー（文字サイズUP） ---
+    // --- UIヘッダー ---
     const jpFont = { fontFamily: '"Hiragino Kaku Gothic ProN", "Meiryo", sans-serif', fontWeight: 'bold' };
     
-    // 背景バー
     this.add.rectangle(cx, headerY, 900, 220, 0x000000, 0.5).setStrokeStyle(2, 0x444444);
     
     this.mineralText = this.add.text(cx, headerY - 20, '0', { ...jpFont, fontSize: '90px', color: '#ffffff' })
@@ -83,7 +80,6 @@ export class GameScene extends Phaser.Scene {
   // --- 惑星生成 ---
   private createPlanet(x: number, y: number) {
     this.planet = this.add.container(x, y);
-    // 惑星サイズも少し大きく
     const radius = 180;
     
     const body = this.add.circle(0, 0, radius, 0x4466aa);
@@ -92,7 +88,6 @@ export class GameScene extends Phaser.Scene {
     const ring = this.add.ellipse(0, 0, radius * 3.5, radius * 0.8, 0x88ccff, 0.4).setRotation(0.3);
 
     this.planet.add([atmosphere, ring, body, shadow]);
-    // タップ判定エリアも大きく
     this.planet.setSize(radius * 2.5, radius * 2.5);
 
     this.planet.setInteractive({ useHandCursor: true })
@@ -102,11 +97,10 @@ export class GameScene extends Phaser.Scene {
     this.tweens.add({ targets: ring, rotation: 0.35, duration: 6000, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
   }
 
-  // --- グリッドショップ生成（巨大化） ---
+  // --- グリッドショップ生成 ---
   private createGridShop(centerX: number, startY: number) {
     this.shopContainer = this.add.container(0, 0);
     const cols = 2;
-    // ボタンサイズを大幅アップ (190 -> 450)
     const cellWidth = 460;
     const cellHeight = 280;
     const jpFont = { fontFamily: '"Hiragino Kaku Gothic ProN", sans-serif', fontWeight: 'bold' };
@@ -114,38 +108,31 @@ export class GameScene extends Phaser.Scene {
     this.buildings.forEach((b, i) => {
       const col = i % cols;
       const row = Math.floor(i / cols);
-      // 間隔を少し空けて配置
       const x = centerX + (col - 0.5) * cellWidth * 1.08;
       const y = startY + row * cellHeight * 1.08;
 
       const container = this.add.container(x, y);
 
-      // 背景ボタン
       const bg = this.add.rectangle(0, 0, 440, 260, 0x222222).setStrokeStyle(4, 0x555555)
         .setInteractive({ useHandCursor: true })
         .on('pointerdown', () => this.buyBuilding(i));
       bg.setName(`bg`);
 
-      // ゲージ
       const barBg = this.add.rectangle(0, 120, 440, 15, 0x000000);
       const barFill = this.add.rectangle(-220, 120, 0, 15, 0xffff00).setOrigin(0, 0.5);
       barFill.setName('bar');
 
-      // アイコン（サイズ倍増）
       const icon = this.add.text(0, -50, b.icon, { fontSize: '100px' }).setOrigin(0.5);
       
-      // 文字情報（サイズ倍増）
       const nameText = this.add.text(0, 15, b.name, { ...jpFont, fontSize: '32px', color: '#ffffff' }).setOrigin(0.5);
       
       const costText = this.add.text(0, 55, `¥${this.formatNumber(b.cost)}`, { ...jpFont, fontSize: '36px', color: '#aaaaaa' }).setOrigin(0.5);
       costText.setName('cost');
       
-      // 所持数バッジ
       const countBg = this.add.circle(180, -100, 35, 0x000000);
       const countText = this.add.text(180, -100, `${b.count}`, { fontSize: '32px', color: '#ffffff' }).setOrigin(0.5);
       countText.setName('count');
 
-      // 秒間収入
       const incomeText = this.add.text(0, 90, `+${this.formatNumber(b.baseIncome)}/秒`, { fontSize: '24px', color: '#00ff00' }).setOrigin(0.5);
 
       container.add([bg, barBg, barFill, icon, nameText, costText, incomeText, countBg, countText]);
@@ -184,7 +171,6 @@ export class GameScene extends Phaser.Scene {
       
       const b = this.buildings[Phaser.Math.Between(0, this.buildings.length - 1)];
       if (b.count > 0) {
-         // アイコンが飛び出す位置調整
          const x = this.planet.x + Phaser.Math.Between(-80, 80);
          this.createFloatingText(x, this.planet.y - 150, `${b.icon} +${this.formatNumber(income)}`, 0x00ff00, 32);
       }
@@ -229,7 +215,6 @@ export class GameScene extends Phaser.Scene {
       countText.setText(`${b.count}`);
 
       const percent = Phaser.Math.Clamp(this.minerals / b.cost, 0, 1);
-      // バーの長さも最大値(440)に合わせて調整
       bar.width = 440 * percent;
 
       if (this.minerals >= b.cost) {
@@ -256,7 +241,7 @@ export class GameScene extends Phaser.Scene {
 
     this.tweens.add({
       targets: text,
-      y: y - 120, // 浮き上がる距離も長く
+      y: y - 120,
       alpha: 0,
       duration: 1000,
       ease: 'Power2',
@@ -316,7 +301,6 @@ export class GameScene extends Phaser.Scene {
       if (income > 0) {
         const earned = income * diff;
         this.minerals += earned;
-        // アラートが出ると操作の邪魔なので、今回はコンソールログだけに控える（あるいは後で専用UIを作る）
         console.log(`オフライン収益: ${this.formatNumber(earned)}`);
       }
     }
