@@ -3,15 +3,15 @@ import { GameScene } from './scenes/GameScene';
 
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
-  width: 1080, // ゲーム内の解像度（横）
-  height: 1920, // ゲーム内の解像度（縦・スマホ向け縦長）
-  backgroundColor: '#0d1117', // 宇宙っぽい暗い青
+  width: 1080,
+  height: 2400, // 1920から変更。最近の縦長スマホに合わせて長くする
+  backgroundColor: '#0d1117',
   parent: 'game-container',
   scale: {
-    mode: Phaser.Scale.FIT, // 画面に合わせて比率を保ったまま拡大縮小
-    autoCenter: Phaser.Scale.CENTER_BOTH, // 画面中央に配置
+    mode: Phaser.Scale.FIT, // 画面比率を保ったまま最大化
+    autoCenter: Phaser.Scale.CENTER_HORIZONTALLY, // 横方向は中央揃え（PC用）
   },
-  scene: [GameScene], // ここにゲームのシーンを追加していく
+  scene: [GameScene],
 };
 
 new Phaser.Game(config);
