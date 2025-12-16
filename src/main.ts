@@ -4,19 +4,17 @@ import { GameScene } from './scenes/GameScene';
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
   scale: {
-    mode: Phaser.Scale.RESIZE, // 画面に合わせて変形
+    mode: Phaser.Scale.RESIZE, // 画面サイズに合わせて変形
     parent: 'game-container',
     width: '100%',
     height: '100%',
     autoCenter: Phaser.Scale.NO_CENTER,
   },
-  // --- ここが画質向上のカギ ---
   render: {
-    pixelArt: false,
-    antialias: true,
+    pixelArt: false, // ドット絵モードではないのでfalse
+    antialias: true, // 滑らかにする
+    roundPixels: true, // 文字の滲みを防ぐために座標を整数にする
   },
-  // デバイスの解像度倍率（スマホだと2〜3倍）を適用
-  resolution: window.devicePixelRatio, 
   backgroundColor: '#0d1117',
   scene: [GameScene],
 };
